@@ -1,0 +1,21 @@
+# Build artifacts
+*.o
+*.obj
+*.os
+*.pyc
+__pycache__/
+.sconsign.dblite
+.sconf_temp/
+*.log
+
+# godot-cpp build files
+godot-cpp/bin/
+godot-cpp/gen/
+
+# Don't ignore the addon binaries - we want those in the repo
+# But ignore local build temp files
+*.tmp
+
+# Godot
+.godot/
+*.import

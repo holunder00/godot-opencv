@@ -1,0 +1,80 @@
+import os
+import sys
+
+env = SConscript("godot-cpp/SConstruct")
+
+def find_opencv(env):
+    opencv_path = os.environ.get("OPENCV_DIR", "")
+    if sys.platform in ("linux", "linux2"):
+        try:
+            env.ParseConfig("pkg-config --cflags --libs opencv4")
+            return
+        except: pass
+        try:
+            env.ParseConfig("pkg-config --cflags --libs opencv")
+            return
+        except: pass
+    if sys.platform == "darwin":
+        try:
+            env.ParseConfig("pkg-config --cflags --libs opencv4")
+            return
+        except: pass
+        brew_prefix = "/opt/homebrew" if os.path.exists("/opt/homebrew") else "/usr/local"
+        opencv_prefix = os.path.join(brew_prefix, "opt", "opencv")
+        if os.path.exists(opencv_prefix):
+            env.Append(CPPPATH=[os.path.join(opencv_prefix, "include", "opencv4")])
+            env.Append(LIBPATH=[os.path.join(opencv_prefix, "lib")])
+            env.Append(LIBS=["opencv_core", "opencv_imgproc", "opencv_imgcodecs", "opencv_videoio", "opencv_objdetect", "opencv_features2d", "opencv_calib3d"])
+            return
+    if sys.platform == "win32" or opencv_path:
+        if not opencv_path:
+            opencv_path = "C:\\opencv\\build"
+        env.Append(CPPPATH=[os.path.join(opencv_path, "include")])
+        for vc in ["vc16", "vc15"]:
+            lib_path = os.path.join(opencv_path, "x64", vc, "lib")
+            if os.path.exists(lib_path):
+                env.Append(LIBPATH=[lib_path])
+                for ver in ["4100", "490", "480", "470", "460"]:
+                    lib_name = "opencv_world{}".format(ver)
+                    if env["target"] == "template_debug":
+                        lib_name += "d"
+                    if os.path.exists(os.path.join(lib_path, lib_name + ".lib")):
+                        env.Append(LIBS=[lib_name])
+                        return
+        env.Append(LIBS=["opencv_world4100"])
+        return
+    env.Append(LIBS=["opencv_core", "opencv_imgproc", "opencv_imgcodecs", "opencv_videoio", "opencv_objdetect", "opencv_features2d", "opencv_calib3d"])
+
+find_opencv(env)
+
+# RPATH for bundled libs
+if sys.platform in ("linux", "linux2"):
+    env.Append(LINKFLAGS=["-Wl,-rpath,$ORIGIN/libs"])
+    try:
+        import subprocess
+        result = subprocess.run(["pkg-config", "--libs-only-L", "opencv4"], capture_output=True, text=True)
+        if result.returncode == 0:
+            for token in result.stdout.strip().split():
+                if token.startswith("-L"):
+                    env.Append(LINKFLAGS=["-Wl,-rpath," + token[2:]])
+    except: pass
+elif sys.platform == "darwin":
+    env.Append(LINKFLAGS=["-Wl,-rpath,@loader_path/libs"])
+
+env.Append(CPPPATH=["src/"])
+sources = Glob("src/*.cpp")
+
+# Output to platform-specific addon folder
+platform_dir = {
+    "linux": "linux",
+    "linux2": "linux",
+    "darwin": "macos",
+    "win32": "windows",
+}.get(sys.platform, "linux")
+
+output_path = "addons/gdopencv/bin/{}/libgdopencv{}{}".format(
+    platform_dir, env["suffix"], env["SHLIBSUFFIX"]
+)
+
+library = env.SharedLibrary(output_path, source=sources)
+Default(library)
