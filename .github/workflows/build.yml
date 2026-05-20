@@ -58,19 +58,14 @@ jobs:
       # --- Build ---
       - name: Build godot-cpp
         run: |
-          cd godot-cpp
-          scons platform=${{ matrix.platform }} target=template_debug -j4
-          scons platform=${{ matrix.platform }} target=template_release -j4
+          scons -C godot-cpp platform=${{ matrix.platform }} target=template_debug -j4
+          scons -C godot-cpp platform=${{ matrix.platform }} target=template_release -j4
 
       - name: Build extension (Debug)
-        run: |
-          cd ..
-          scons platform=${{ matrix.platform }} target=template_debug -j4
+        run: scons platform=${{ matrix.platform }} target=template_debug -j4
 
       - name: Build extension (Release)
-        run: |
-          cd ..
-          scons platform=${{ matrix.platform }} target=template_release -j4
+        run: scons platform=${{ matrix.platform }} target=template_release -j4
 
       # --- Bundle dependencies ---
       - name: Bundle Linux libs
