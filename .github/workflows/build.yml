@@ -1,0 +1,162 @@
+# .github/workflows/build.yml
+name: Build & Release GDOpenCV
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - platform: linux
+            os: ubuntu-22.04
+            output_dir: addons/gdopencv/bin/linux
+          - platform: windows
+            os: windows-latest
+            output_dir: addons/gdopencv/bin/windows
+          - platform: macos
+            os: macos-latest
+            output_dir: addons/gdopencv/bin/macos
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Install SCons
+        run: pip install scons
+
+      # --- Platform-specific OpenCV ---
+      - name: Install OpenCV (Linux)
+        if: matrix.platform == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libopencv-dev patchelf
+
+      - name: Install OpenCV (macOS)
+        if: matrix.platform == 'macos'
+        run: brew install opencv
+
+      - name: Install OpenCV (Windows)
+        if: matrix.platform == 'windows'
+        shell: powershell
+        run: |
+          $url = "https://github.com/opencv/opencv/releases/download/4.10.0/opencv-4.10.0-windows.exe"
+          Invoke-WebRequest -Uri $url -OutFile opencv.exe
+          Start-Process -FilePath opencv.exe -ArgumentList "-o`"C:\opencv`" -y" -Wait
+          echo "OPENCV_DIR=C:\opencv\opencv\build" >> $env:GITHUB_ENV
+
+      # --- Build ---
+      - name: Build godot-cpp
+        run: |
+          cd godot-cpp
+          scons platform=${{ matrix.platform }} target=template_debug -j4
+          scons platform=${{ matrix.platform }} target=template_release -j4
+
+      - name: Build extension (Debug)
+        run: scons platform=${{ matrix.platform }} target=template_debug -j4
+
+      - name: Build extension (Release)
+        run: scons platform=${{ matrix.platform }} target=template_release -j4
+
+      # --- Bundle dependencies ---
+      - name: Bundle Linux libs
+        if: matrix.platform == 'linux'
+        run: |
+          mkdir -p addons/gdopencv/bin/linux/libs
+          EXT=$(ls addons/gdopencv/bin/linux/libgdopencv.linux.template_debug.*.so)
+          ldd "$EXT" | grep opencv | awk '{print $3}' | while read lib; do
+            cp "$lib" addons/gdopencv/bin/linux/libs/
+            ldd "$lib" | grep -E "lib(png|jpeg|tiff|webp|z\.)" | awk '{print $3}' | while read dep; do
+              [ -f "$dep" ] && cp -n "$dep" addons/gdopencv/bin/linux/libs/ || true
+            done
+          done
+          for ext in addons/gdopencv/bin/linux/libgdopencv.*.so; do
+            patchelf --set-rpath '$ORIGIN/libs' "$ext"
+          done
+          for lib in addons/gdopencv/bin/linux/libs/*.so*; do
+            patchelf --set-rpath '$ORIGIN' "$lib" 2>/dev/null || true
+          done
+
+      - name: Bundle Windows DLLs
+        if: matrix.platform == 'windows'
+        shell: powershell
+        run: |
+          $dlls = Get-ChildItem -Path "$env:OPENCV_DIR" -Recurse -Filter "opencv_world*.dll"
+          foreach ($dll in $dlls) {
+            Copy-Item $dll.FullName addons/gdopencv/bin/windows/
+          }
+
+      - name: Bundle macOS libs
+        if: matrix.platform == 'macos'
+        run: |
+          mkdir -p addons/gdopencv/bin/macos/libs
+          BREW_PREFIX=$(brew --prefix)
+          EXT=$(ls addons/gdopencv/bin/macos/libgdopencv.macos.template_debug.*.dylib)
+          otool -L "$EXT" | grep "$BREW_PREFIX" | awk '{print $1}' | while read lib; do
+            cp "$lib" addons/gdopencv/bin/macos/libs/
+          done
+          for lib in addons/gdopencv/bin/macos/libs/*.dylib; do
+            lib_name=$(basename "$lib")
+            install_name_tool -id "@rpath/$lib_name" "$lib"
+          done
+          for ext in addons/gdopencv/bin/macos/libgdopencv.macos.*.dylib; do
+            install_name_tool -add_rpath @loader_path/libs "$ext" 2>/dev/null || true
+          done
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.platform }}-binaries
+          path: addons/gdopencv/bin/${{ matrix.platform == 'linux' && 'linux' || matrix.platform == 'windows' && 'windows' || 'macos' }}/
+
+  package:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download Linux binaries
+        uses: actions/download-artifact@v4
+        with:
+          name: linux-binaries
+          path: addons/gdopencv/bin/linux/
+
+      - name: Download Windows binaries
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-binaries
+          path: addons/gdopencv/bin/windows/
+
+      - name: Download macOS binaries
+        uses: actions/download-artifact@v4
+        with:
+          name: macos-binaries
+          path: addons/gdopencv/bin/macos/
+
+      - name: Create release archive
+        run: |
+          cd addons
+          zip -r ../gdopencv-addon.zip gdopencv/
+          cd ..
+
+      - name: Upload addon
+        uses: actions/upload-artifact@v4
+        with:
+          name: gdopencv-addon
+          path: gdopencv-addon.zip
+
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: gdopencv-addon.zip
