@@ -62,20 +62,15 @@ jobs:
           scons -C godot-cpp platform=${{ matrix.platform }} target=template_release -j4
 
       - name: Build extension (Debug)
-        run: |
-          cd build
-          scons platform=${{ matrix.platform }} target=template_debug -j4
+        run: scons -C build platform=${{ matrix.platform }} target=template_debug -j4
 
       - name: Build extension (Release)
-        run: |
-          cd build
-          scons platform=${{ matrix.platform }} target=template_release -j4
+        run: scons -C build platform=${{ matrix.platform }} target=template_release -j4
 
       # --- Bundle dependencies ---
       - name: Bundle Linux libs
         if: matrix.platform == 'linux'
         run: |
-          cd ..
           mkdir -p addons/gdopencv/bin/linux/libs
           EXT=$(ls addons/gdopencv/bin/linux/libgdopencv.linux.template_debug.*.so)
           ldd "$EXT" | grep opencv | awk '{print $3}' | while read lib; do
