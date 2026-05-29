@@ -30,17 +30,27 @@ def find_opencv(env):
         if not opencv_path:
             opencv_path = "C:\\opencv\\build"
         env.Append(CPPPATH=[os.path.join(opencv_path, "include")])
-        for vc in ["vc16", "vc15"]:
+        print("OpenCV path: {}".format(opencv_path))
+        for vc in ["vc17", "vc16", "vc15"]:
             lib_path = os.path.join(opencv_path, "x64", vc, "lib")
+            print("Checking: {}".format(lib_path))
             if os.path.exists(lib_path):
                 env.Append(LIBPATH=[lib_path])
                 for ver in ["4100", "490", "480", "470", "460"]:
                     lib_name = "opencv_world{}".format(ver)
                     if env["target"] == "template_debug":
                         lib_name += "d"
-                    if os.path.exists(os.path.join(lib_path, lib_name + ".lib")):
+                    full_path = os.path.join(lib_path, lib_name + ".lib")
+                    print("Checking lib: {}".format(full_path))
+                    if os.path.exists(full_path):
                         env.Append(LIBS=[lib_name])
+                        print("Found OpenCV: {} in {}".format(lib_name, lib_path))
                         return
+        # Fallback: list what's actually there
+        for root, dirs, files in os.walk(opencv_path):
+            for f in files:
+                if f.endswith(".lib"):
+                    print("Found lib: {}".format(os.path.join(root, f)))
         env.Append(LIBS=["opencv_world4100"])
         return
     env.Append(LIBS=["opencv_core", "opencv_imgproc", "opencv_imgcodecs", "opencv_videoio", "opencv_objdetect", "opencv_features2d", "opencv_calib3d"])
