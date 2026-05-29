@@ -76,7 +76,7 @@ jobs:
           echo "Found extension: $EXT"
           ldd "$EXT" | grep opencv | awk '{print $3}' | while read lib; do
             if [ -f "$lib" ]; then
-              cp "$lib" addons/gdopencv/bin/linux/libs/
+              cp -n "$lib" addons/gdopencv/bin/linux/libs/
               ldd "$lib" | grep -E "lib(png|jpeg|tiff|webp|z\.)" | awk '{print $3}' | while read dep; do
                 [ -f "$dep" ] && cp -n "$dep" addons/gdopencv/bin/linux/libs/ || true
               done
