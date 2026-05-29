@@ -77,9 +77,9 @@ jobs:
           echo "Found extension: $EXT"
           ldd "$EXT" | grep opencv | awk '{print $3}' | while read lib; do
             if [ -f "$lib" ]; then
-              cp -n "$lib" addons/gdopencv/bin/linux/libs/
+              cp -n "$lib" addons/gdopencv/bin/linux/libs/ 2>/dev/null || true
               ldd "$lib" | grep -E "lib(png|jpeg|tiff|webp|z\.)" | awk '{print $3}' | while read dep; do
-                [ -f "$dep" ] && cp -n "$dep" addons/gdopencv/bin/linux/libs/ || true
+                [ -f "$dep" ] && cp -n "$dep" addons/gdopencv/bin/linux/libs/ 2>/dev/null || true
               done
             fi
           done
@@ -89,6 +89,9 @@ jobs:
           for lib in addons/gdopencv/bin/linux/libs/*.so*; do
             patchelf --set-rpath '$ORIGIN' "$lib" 2>/dev/null || true
           done
+          echo "Bundled libs:"
+          ls -la addons/gdopencv/bin/linux/libs/
+          
     
       - name: Bundle Windows DLLs
         if: matrix.platform == 'windows'
