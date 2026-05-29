@@ -126,9 +126,18 @@ jobs:
       - name: Bundle macOS libs
         if: matrix.platform == 'macos'
         run: |
+          find . -name "*.dylib" | head -20
           mkdir -p addons/gdopencv/bin/macos/libs
+          # Copy built files from build/ to addons/
+          cp build/addons/gdopencv/bin/macos/*.dylib addons/gdopencv/bin/macos/ 2>/dev/null || true
           BREW_PREFIX=$(brew --prefix)
-          EXT=$(ls addons/gdopencv/bin/macos/libgdopencv.macos.template_debug.*.dylib)
+          EXT=$(find addons/gdopencv/bin/macos -name "libgdopencv.macos.template_debug.*.dylib" | head -1)
+          echo "Found: $EXT"
+          if [ -z "$EXT" ]; then
+            echo "ERROR: No dylib found!"
+            find . -name "libgdopencv*" | head -20
+            exit 1
+          fi
           otool -L "$EXT" | grep "$BREW_PREFIX" | awk '{print $1}' | while read lib; do
             cp "$lib" addons/gdopencv/bin/macos/libs/
           done
