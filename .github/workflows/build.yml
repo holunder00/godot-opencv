@@ -92,15 +92,15 @@ jobs:
       - name: Bundle Linux libs
         if: matrix.platform == 'linux'
         run: |
-          set +e
           mkdir -p addons/gdopencv/bin/linux/libs
+          cp build/addons/gdopencv/bin/linux/*.so addons/gdopencv/bin/linux/ 2>/dev/null || true
           EXT=$(find addons/gdopencv/bin/linux -name "libgdopencv.linux.template_debug.*.so" | head -1)
           echo "Found extension: $EXT"
           ldd "$EXT" | grep opencv | awk '{print $3}' | while read lib; do
             if [ -f "$lib" ]; then
-              cp -n "$lib" addons/gdopencv/bin/linux/libs/ 2>/dev/null || true
+              cp -n "$lib" addons/gdopencv/bin/linux/libs/
               ldd "$lib" | grep -E "lib(png|jpeg|tiff|webp|z\.)" | awk '{print $3}' | while read dep; do
-                [ -f "$dep" ] && cp -n "$dep" addons/gdopencv/bin/linux/libs/ 2>/dev/null || true
+                [ -f "$dep" ] && cp -n "$dep" addons/gdopencv/bin/linux/libs/ || true
               done
             fi
           done
@@ -110,14 +110,14 @@ jobs:
           for lib in addons/gdopencv/bin/linux/libs/*.so*; do
             patchelf --set-rpath '$ORIGIN' "$lib" 2>/dev/null || true
           done
-          echo "Bundled libs:"
-          ls -la addons/gdopencv/bin/linux/libs/
           
     
       - name: Bundle Windows DLLs
         if: matrix.platform == 'windows'
         shell: powershell
         run: |
+          New-Item -ItemType Directory -Force -Path addons/gdopencv/bin/windows
+          Copy-Item build/addons/gdopencv/bin/windows/*.dll addons/gdopencv/bin/windows/ -ErrorAction SilentlyContinue
           $dlls = Get-ChildItem -Path "$env:OPENCV_DIR" -Recurse -Filter "opencv_world*.dll"
           foreach ($dll in $dlls) {
             Copy-Item $dll.FullName addons/gdopencv/bin/windows/
@@ -126,18 +126,10 @@ jobs:
       - name: Bundle macOS libs
         if: matrix.platform == 'macos'
         run: |
-          find . -name "*.dylib" | head -20
           mkdir -p addons/gdopencv/bin/macos/libs
-          # Copy built files from build/ to addons/
-          cp build/addons/gdopencv/bin/macos/*.dylib addons/gdopencv/bin/macos/ 2>/dev/null || true
+          cp build/addons/gdopencv/bin/macos/*.dylib addons/gdopencv/bin/macos/
           BREW_PREFIX=$(brew --prefix)
           EXT=$(find addons/gdopencv/bin/macos -name "libgdopencv.macos.template_debug.*.dylib" | head -1)
-          echo "Found: $EXT"
-          if [ -z "$EXT" ]; then
-            echo "ERROR: No dylib found!"
-            find . -name "libgdopencv*" | head -20
-            exit 1
-          fi
           otool -L "$EXT" | grep "$BREW_PREFIX" | awk '{print $1}' | while read lib; do
             cp "$lib" addons/gdopencv/bin/macos/libs/
           done
