@@ -58,6 +58,7 @@ def find_opencv(env):
 find_opencv(env)
 print("Final LIBS: {}".format(env.get('LIBS', [])))
 print("Final LIBPATH: {}".format(env.get('LIBPATH', [])))
+print("sys.platform: {}".format(sys.platform))
 
 # RPATH for bundled libs
 if sys.platform in ("linux", "linux2"):
