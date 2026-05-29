@@ -55,6 +55,14 @@ jobs:
           Start-Process -FilePath opencv.exe -ArgumentList "-o`"C:\opencv`" -y" -Wait
           echo "OPENCV_DIR=C:\opencv\opencv\build" >> $env:GITHUB_ENV
 
+      - name: Debug OpenCV lib
+        if: matrix.platform == 'windows'
+        shell: cmd
+        run: |
+          dir "C:\opencv\opencv\build\x64\vc16\lib\opencv_world4100d.lib"
+          call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
+          dumpbin /symbols "C:\opencv\opencv\build\x64\vc16\lib\opencv_world4100d.lib" | findstr "noArray"
+
       # --- Build ---
       - name: Build godot-cpp
         shell: bash
@@ -66,14 +74,6 @@ jobs:
             scons -C godot-cpp platform=${{ matrix.platform }} target=template_debug -j4
             scons -C godot-cpp platform=${{ matrix.platform }} target=template_release -j4
           fi
-      
-      - name: Debug OpenCV lib
-        if: matrix.platform == 'windows'
-        shell: powershell
-        run: |
-          dir "C:\opencv\opencv\build\x64\vc16\lib\opencv_world4100d.lib"
-          dumpbin /headers "C:\opencv\opencv\build\x64\vc16\lib\opencv_world4100d.lib" | Select-Object -First 20
-          dumpbin /symbols "C:\opencv\opencv\build\x64\vc16\lib\opencv_world4100d.lib" | Select-String "noArray" | Select-Object -First 5
       
       - name: Build extension (Debug)
         shell: bash
