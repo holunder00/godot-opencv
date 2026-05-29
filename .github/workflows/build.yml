@@ -56,8 +56,8 @@ jobs:
           echo "OPENCV_DIR=C:\opencv\opencv\build" >> $env:GITHUB_ENV
 
       # --- Build ---
-       # --- Build ---
       - name: Build godot-cpp
+        shell: bash
         run: |
           if [ "${{ matrix.platform }}" == "macos" ]; then
             scons -C godot-cpp platform=macos target=template_debug arch=arm64 -j4
@@ -66,25 +66,24 @@ jobs:
             scons -C godot-cpp platform=${{ matrix.platform }} target=template_debug -j4
             scons -C godot-cpp platform=${{ matrix.platform }} target=template_release -j4
           fi
-        shell: bash
 
       - name: Build extension (Debug)
+        shell: bash
         run: |
           if [ "${{ matrix.platform }}" == "macos" ]; then
             scons -C build platform=macos target=template_debug arch=arm64 -j4
           else
             scons -C build platform=${{ matrix.platform }} target=template_debug -j4
           fi
-        shell: bash
 
       - name: Build extension (Release)
+        shell: bash
         run: |
           if [ "${{ matrix.platform }}" == "macos" ]; then
             scons -C build platform=macos target=template_release arch=arm64 -j4
           else
             scons -C build platform=${{ matrix.platform }} target=template_release -j4
           fi
-        shell: bash
         
       # --- Bundle dependencies ---
       - name: Bundle Linux libs
