@@ -71,6 +71,7 @@ jobs:
       - name: Bundle Linux libs
         if: matrix.platform == 'linux'
         run: |
+          set +e
           mkdir -p addons/gdopencv/bin/linux/libs
           EXT=$(find addons/gdopencv/bin/linux -name "libgdopencv.linux.template_debug.*.so" | head -1)
           echo "Found extension: $EXT"
