@@ -38,8 +38,8 @@ def find_opencv(env):
                 env.Append(LIBPATH=[lib_path])
                 for ver in ["4100", "490", "480", "470", "460"]:
                     lib_name = "opencv_world{}".format(ver)
-                    if env["target"] == "template_debug":
-                        lib_name += "d"
+                    #if env["target"] == "template_debug":
+                        #lib_name += "d"
                     full_path = os.path.join(lib_path, lib_name + ".lib")
                     print("Checking lib: {}".format(full_path))
                     if os.path.exists(full_path):
