@@ -53,20 +53,7 @@ jobs:
           $url = "https://github.com/opencv/opencv/releases/download/4.10.0/opencv-4.10.0-windows.exe"
           Invoke-WebRequest -Uri $url -OutFile opencv.exe
           Start-Process -FilePath opencv.exe -ArgumentList "-o`"C:\opencv`" -y" -Wait
-          echo "OPENCV_DIR=C:\opencv\opencv\build" >> $env:GITHUB_ENV
-      
-      - name: Debug OpenCV lib
-        if: matrix.platform == 'windows'
-        shell: cmd
-        run: |
-          call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
-          dumpbin /exports "C:\opencv\opencv\build\x64\vc16\lib\opencv_world4100d.lib" > opencv_dump.txt 2>&1
-          type opencv_dump.txt | findstr /C:"cv::"
-          echo --- archive members ---
-          dumpbin /archivemembers "C:\opencv\opencv\build\x64\vc16\lib\opencv_world4100d.lib"
-          exit /b 1
-
-     
+          echo "OPENCV_DIR=C:\opencv\opencv\build" >> $env:GITHUB_ENV   
 
       # --- Build ---
       - name: Build godot-cpp
