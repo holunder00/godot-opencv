@@ -1,6 +1,7 @@
 #include "opencv_camera.h"
 #include <godot_cpp/core/class_db.hpp>
 #include <godot_cpp/variant/utility_functions.hpp>
+#include <opencv2/imgproc.hpp>
 
 #ifdef __linux__
 #include <unistd.h>
@@ -29,42 +30,109 @@ void CVCamera::_bind_methods() {
 }
 
 CVCamera::CVCamera() {}
-CVCamera::~CVCamera() { close(); }
+
+CVCamera::~CVCamera() {
+    close();
+}
+
+void CVCamera::capture_loop() {
+    cv::Mat frame;
+    while (thread_running.load()) {
+        if (cap.read(frame) && !frame.empty()) {
+            std::lock_guard<std::mutex> lock(frame_mutex);
+            latest_frame = frame.clone();
+            new_frame_available.store(true);
+        }
+    }
+}
 
 bool CVCamera::open(int index) {
     close();
 
     #ifdef __linux__
-    usleep(100000); // 100ms
+    usleep(100000);
     #endif
 
-    is_opened = cap.open(index, cv::CAP_V4L2);
-    if(!is_opened){
-        is_opened = cap.open(index, cv::CAP_ANY);
+    cap.set(cv::CAP_PROP_FRAME_WIDTH, resolution.x);
+    cap.set(cv::CAP_PROP_FRAME_HEIGHT, resolution.y);
+    bool success = cap.open(index, cv::CAP_V4L2);
+    if (!success) {
+        success = cap.open(index, cv::CAP_ANY);
     }
-    if (is_opened) {
-        cap.set(cv::CAP_PROP_FRAME_WIDTH, resolution.x);
-        cap.set(cv::CAP_PROP_FRAME_HEIGHT, resolution.y);
-        camera_index = index;
+
+    if (!success) {
+        UtilityFunctions::print("CVCamera: Failed to open camera ", index);
+        return false;
     }
-    return is_opened;
+
+    
+    camera_index = index;
+    m_opened.store(true);
+    use_thread = true;
+
+    // Start capture thread
+    thread_running.store(true);
+    capture_thread = std::thread(&CVCamera::capture_loop, this);
+
+    UtilityFunctions::print("CVCamera: Opened camera ", index, " with threaded capture");
+    return true;
 }
 
 bool CVCamera::open_file(const String &path) {
     close();
     std::string std_path = std::string(path.utf8().get_data());
-    is_opened = cap.open(std_path);
-    return is_opened;
+    bool success = cap.open(std_path);
+    if (success) {
+        m_opened.store(true);
+        use_thread = false;  // Files don't need threading
+        UtilityFunctions::print("CVCamera: Opened file ", path);
+    }
+    return success;
 }
 
-void CVCamera::close() { if (cap.isOpened()) cap.release(); is_opened = false; }
-bool CVCamera::is_open() const { return is_opened && cap.isOpened(); }
+void CVCamera::close() {
+    // Stop thread first
+    thread_running.store(false);
+    if (capture_thread.joinable()) {
+        capture_thread.join();
+    }
+
+    if (cap.isOpened()) {
+        cap.release();
+    }
+    m_opened.store(false);
+    new_frame_available.store(false);
+}
+
+bool CVCamera::is_open() const {
+    return m_opened.load() && cap.isOpened();
+}
 
 Ref<CVImage> CVCamera::read_frame() {
     if (!is_open()) return Ref<CVImage>();
-    cv::Mat frame; cap >> frame;
-    if (frame.empty()) return Ref<CVImage>();
-    return CVImage::_from_mat(frame);
+
+    if (use_thread) {
+        // Threaded path: return latest frame without blocking
+        if (!new_frame_available.load()) {
+            return Ref<CVImage>();
+        }
+
+        cv::Mat frame;
+        {
+            std::lock_guard<std::mutex> lock(frame_mutex);
+            frame = latest_frame.clone();
+            new_frame_available.store(false);
+        }
+
+        if (frame.empty()) return Ref<CVImage>();
+        return CVImage::_from_mat(frame);
+    } else {
+        // Non-threaded path: for video files, read sequentially
+        cv::Mat frame;
+        cap >> frame;
+        if (frame.empty()) return Ref<CVImage>();
+        return CVImage::_from_mat(frame);
+    }
 }
 
 Ref<Image> CVCamera::read_image() {
@@ -81,7 +149,10 @@ Ref<ImageTexture> CVCamera::read_texture() {
 
 void CVCamera::set_resolution(const Vector2i &res) {
     resolution = res;
-    if (is_open()) { cap.set(cv::CAP_PROP_FRAME_WIDTH, res.x); cap.set(cv::CAP_PROP_FRAME_HEIGHT, res.y); }
+    if (is_open()) {
+        cap.set(cv::CAP_PROP_FRAME_WIDTH, res.x);
+        cap.set(cv::CAP_PROP_FRAME_HEIGHT, res.y);
+    }
 }
 
 Vector2i CVCamera::get_resolution() const { return resolution; }
