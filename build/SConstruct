@@ -1,89 +1,88 @@
+
 import os
-import sys
+import glob
 
 env = SConscript("godot-cpp/SConstruct")
 
-def find_opencv(env):
-    opencv_path = os.environ.get("OPENCV_DIR", "")
-    if sys.platform in ("linux", "linux2"):
-        try:
-            env.ParseConfig("pkg-config --cflags --libs opencv4")
-            return
-        except: pass
-        try:
-            env.ParseConfig("pkg-config --cflags --libs opencv")
-            return
-        except: pass
-    if sys.platform == "darwin":
-        try:
-            env.ParseConfig("pkg-config --cflags --libs opencv4")
-            return
-        except: pass
-        brew_prefix = "/opt/homebrew" if os.path.exists("/opt/homebrew") else "/usr/local"
-        opencv_prefix = os.path.join(brew_prefix, "opt", "opencv")
-        if os.path.exists(opencv_prefix):
-            env.Append(CPPPATH=[os.path.join(opencv_prefix, "include", "opencv4")])
-            env.Append(LIBPATH=[os.path.join(opencv_prefix, "lib")])
-            env.Append(LIBS=["opencv_core", "opencv_imgproc", "opencv_imgcodecs", "opencv_videoio", "opencv_objdetect", "opencv_features2d", "opencv_calib3d"])
-            return
-    if sys.platform == "win32" or opencv_path:
-        if not opencv_path:
-            opencv_path = "C:\\opencv\\build"
-        env.Append(CPPPATH=[os.path.join(opencv_path, "include")])
-        print("OpenCV path: {}".format(opencv_path))
-        for vc in ["vc17", "vc16", "vc15"]:
-            lib_path = os.path.join(opencv_path, "x64", vc, "lib")
-            print("Checking: {}".format(lib_path))
-            if os.path.exists(lib_path):
-                env.Append(LIBPATH=[lib_path])
-                for ver in ["4100", "490", "480", "470", "460"]:
-                    lib_name = "opencv_world{}".format(ver)
-                    #if env["target"] == "template_debug":
-                        #lib_name += "d"
-                    full_path = os.path.join(lib_path, lib_name + ".lib")
-                    print("Checking lib: {}".format(full_path))
-                    if os.path.exists(full_path):
-                        env.Append(LIBS=[lib_name])
-                        print("Found OpenCV: {} in {}".format(lib_name, lib_path))
-                        return
-        # Fallback: list what's actually there
-        for root, dirs, files in os.walk(opencv_path):
-            for f in files:
-                if f.endswith(".lib"):
-                    print("Found lib: {}".format(os.path.join(root, f)))
-        env.Append(LIBS=["opencv_world4100"])
-        return
-    env.Append(LIBS=["opencv_core", "opencv_imgproc", "opencv_imgcodecs", "opencv_videoio", "opencv_objdetect", "opencv_features2d", "opencv_calib3d"])
+# --- Static OpenCV ---
+# Order matters for static linking: dependents before dependencies.
+OPENCV_MODULES = [
+    "opencv_objdetect",
+    "opencv_calib3d",
+    "opencv_features2d",
+    "opencv_videoio",
+    "opencv_imgcodecs",
+    "opencv_flann",      # needed by features2d/calib3d
+    "opencv_imgproc",
+    "opencv_core",
+]
+THIRD_PARTY = ["libpng", "libjpeg-turbo", "zlib"]  # built by OpenCV itself
 
-find_opencv(env)
-print("Final LIBS: {}".format(env.get('LIBS', [])))
-print("Final LIBPATH: {}".format(env.get('LIBPATH', [])))
-print("sys.platform: {}".format(sys.platform))
+opencv = os.environ.get("OPENCV_DIR")
+if not opencv:
+    print("ERROR: OPENCV_DIR environment variable not set")
+    Exit(1)
 
-# RPATH for bundled libs
-if sys.platform in ("linux", "linux2"):
-    env.Append(LINKFLAGS=["-Wl,-rpath,$ORIGIN/libs"])
-    try:
-        import subprocess
-        result = subprocess.run(["pkg-config", "--libs-only-L", "opencv4"], capture_output=True, text=True)
-        if result.returncode == 0:
-            for token in result.stdout.strip().split():
-                if token.startswith("-L"):
-                    env.Append(LINKFLAGS=["-Wl,-rpath," + token[2:]])
-    except: pass
-elif sys.platform == "darwin":
-    env.Append(LINKFLAGS=["-Wl,-rpath,@loader_path/libs"])
+platform = env["platform"]
 
+if platform == "windows":
+    env.Append(CPPPATH=[os.path.join(opencv, "include")])
+
+    # Static install layout: <prefix>/x64/vc*/staticlib
+    candidates = glob.glob(os.path.join(opencv, "x64", "vc*", "staticlib"))
+    if not candidates:
+        # source-install layout can also be <prefix>/staticlib or <prefix>/lib
+        candidates = [p for p in [os.path.join(opencv, "staticlib"),
+                                  os.path.join(opencv, "lib")] if os.path.exists(p)]
+    libdir = candidates[0]
+    env.Append(LIBPATH=[libdir])
+    print("OpenCV static lib dir: {}".format(libdir))
+
+    # Detect version suffix from files on disk (e.g. opencv_core4100.lib)
+    core_libs = glob.glob(os.path.join(libdir, "opencv_core*.lib"))
+    ver = os.path.basename(core_libs[0]).replace("opencv_core", "").replace(".lib", "")
+    print("OpenCV version suffix: {}".format(ver))
+
+    env.Append(LIBS=[m + ver for m in OPENCV_MODULES])
+    env.Append(LIBS=THIRD_PARTY)
+    # Windows system libs required by static opencv (videoio -> Media Foundation etc.)
+    env.Append(LIBS=[
+        "Mfplat", "Mf", "Mfreadwrite", "mfuuid",
+        "ole32", "oleaut32", "comdlg32", "advapi32", "user32", "gdi32",
+    ])
+
+else:
+    env.Append(CPPPATH=[os.path.join(opencv, "include", "opencv4")])
+    env.Append(LIBPATH=[
+        os.path.join(opencv, "lib"),
+        os.path.join(opencv, "lib", "opencv4", "3rdparty"),
+    ])
+
+    if platform == "linux":
+        # --start/end-group makes static link order a non-issue
+        env.Append(LINKFLAGS=["-Wl,--start-group"])
+        env.Append(LIBS=OPENCV_MODULES + THIRD_PARTY)
+        env.Append(LINKFLAGS=[
+            "-Wl,--end-group",
+            "-static-libstdc++",
+            "-static-libgcc",
+        ])
+        env.Append(LIBS=["pthread", "dl"])
+
+    elif platform == "macos":
+        env.Append(LIBS=OPENCV_MODULES + THIRD_PARTY)
+        for fw in ["AVFoundation", "CoreMedia", "CoreVideo", "CoreImage",
+                   "Accelerate", "OpenCL", "Cocoa", "CoreGraphics", "QuartzCore"]:
+            env.Append(LINKFLAGS=["-framework", fw])
+
+print("Final LIBS: {}".format(env.get("LIBS", [])))
+print("Final LIBPATH: {}".format(env.get("LIBPATH", [])))
+
+# --- Extension sources & output ---
 env.Append(CPPPATH=["src/"])
 sources = Glob("src/*.cpp")
 
-# Output to platform-specific addon folder
-platform_dir = {
-    "linux": "linux",
-    "linux2": "linux",
-    "darwin": "macos",
-    "win32": "windows",
-}.get(sys.platform, "linux")
+platform_dir = {"linux": "linux", "macos": "macos", "windows": "windows"}[platform]
 
 output_path = "addons/gdopencv/bin/{}/libgdopencv{}{}".format(
     platform_dir, env["suffix"], env["SHLIBSUFFIX"]
