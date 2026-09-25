@@ -17,10 +17,10 @@ jobs:
         include:
          # - platform: linux
          #   os: ubuntu-22.04
-          - platform: windows
-            os: windows-latest
-        #  - platform: macos
-         #   os: macos-latest
+        #- platform: windows
+        #    os: windows-latest
+          - platform: macos
+            os: macos-latest
 
     runs-on: ${{ matrix.os }}
 
