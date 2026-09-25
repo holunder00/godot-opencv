@@ -141,7 +141,7 @@ jobs:
         run: |
           for f in out/linux/*.so; do
             echo "== $f"; ldd "$f"
-            if ldd "$f" | grep -E "opencv|libav|libgstreamer"; then
+            if ldd "$f" | grep -E "libopencv|libav|libgstreamer"; then
               echo "ERROR: unexpected shared dependency!"; exit 1
             fi
           done
@@ -151,7 +151,7 @@ jobs:
         run: |
           for f in out/macos/*.dylib; do
             echo "== $f"; otool -L "$f"
-            if otool -L "$f" | grep -E "opencv|/opt/homebrew|/usr/local/opt"; then
+            if otool -L "$f" | tail -n +2 | grep -E "libopencv|/opt/homebrew|/usr/local/opt"; then
               echo "ERROR: unexpected shared dependency!"; exit 1
             fi
           done
