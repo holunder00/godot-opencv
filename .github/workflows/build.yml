@@ -47,7 +47,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: opencv-install
-          key: opencv-${{ env.OPENCV_VERSION }}-static-${{ matrix.platform }}-v1
+          key: opencv-${{ env.OPENCV_VERSION }}-static-${{ matrix.platform }}-v2
           # bump the -v1 suffix whenever you change the cmake flags below
 
       - name: Build OpenCV (static)
@@ -87,6 +87,11 @@ jobs:
             -DBUILD_JAVA=OFF \
             -DBUILD_opencv_python3=OFF \
             -DBUILD_WITH_STATIC_CRT=ON \
+            -DWITH_OBSENSOR=OFF \
+            -DWITH_OPENCL=OFF \
+            -DWITH_LAPACK=OFF \
+            -DWITH_PROTOBUF=OFF \
+            -DWITH_ADE=OFF \
             -DCMAKE_INSTALL_PREFIX="${GITHUB_WORKSPACE}/opencv-install" \
             $EXTRA_FLAGS
 
