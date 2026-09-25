@@ -17,10 +17,10 @@ jobs:
         include:
           - platform: linux
             os: ubuntu-22.04
-          #- platform: windows
-          #  os: windows-latest
-          #- platform: macos
-          #  os: macos-latest
+          - platform: windows
+            os: windows-latest
+          - platform: macos
+            os: macos-latest
 
     runs-on: ${{ matrix.os }}
 
@@ -100,7 +100,6 @@ jobs:
       - name: Debug - show OpenCV install layout
         shell: bash
         run: |
-          echo "== lib dirs =="
           find opencv-install -name "*.a" -o -name "*.lib" | head -40
 
       # --- Build godot-cpp + extension ---
@@ -119,6 +118,10 @@ jobs:
           [ "${{ matrix.platform }}" == "macos" ] && ARCH_FLAG="arch=arm64"
           scons -C build platform=${{ matrix.platform }} target=template_debug $ARCH_FLAG -j4 verbose=yes
           scons -C build platform=${{ matrix.platform }} target=template_release $ARCH_FLAG -j4 verbose=yes
+
+      - name: Debug - list built files
+        shell: bash
+        run: find . -name "*.dylib" -o -name "*.so" -o -name "*.dll" | grep -v godot-cpp | head -20
 
       # --- Collect binaries (no dependency bundling needed) ---
       - name: Collect binaries
@@ -160,15 +163,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/download-artifact@v4
+      - name: Download Linux binaries
+        uses: actions/download-artifact@v4
         with:
           name: linux-binaries
           path: addons/gdopencv/bin/linux/
-      - uses: actions/download-artifact@v4
+
+      - name: Download Windows binaries
+        uses: actions/download-artifact@v4
         with:
           name: windows-binaries
           path: addons/gdopencv/bin/windows/
-      - uses: actions/download-artifact@v4
+
+      - name: Download macOS binaries
+        uses: actions/download-artifact@v4
         with:
           name: macos-binaries
           path: addons/gdopencv/bin/macos/
@@ -178,7 +186,8 @@ jobs:
           cd addons
           zip -r ../gdopencv-addon.zip gdopencv/
 
-      - uses: actions/upload-artifact@v4
+      - name: Upload addon
+        uses: actions/upload-artifact@v4
         with:
           name: gdopencv-addon
           path: gdopencv-addon.zip
