@@ -94,23 +94,34 @@ jobs:
         run: |
           mkdir -p addons/gdopencv/bin/linux/libs
           cp build/addons/gdopencv/bin/linux/*.so addons/gdopencv/bin/linux/ 2>/dev/null || true
-          EXT=$(find addons/gdopencv/bin/linux -name "libgdopencv.linux.template_debug.*.so" | head -1)
-          echo "Found extension: $EXT"
-          ldd "$EXT" | grep opencv | awk '{print $3}' | while read lib; do
-            if [ -f "$lib" ]; then
-              cp -n "$lib" addons/gdopencv/bin/linux/libs/
-              ldd "$lib" | grep -E "lib(png|jpeg|tiff|webp|z\.)" | awk '{print $3}' | while read dep; do
-                [ -f "$dep" ] && cp -n "$dep" addons/gdopencv/bin/linux/libs/ || true
-              done
-            fi
+
+          # Libs we should NOT bundle (guaranteed on any Linux, or dangerous to override)
+          EXCLUDE='linux-vdso|ld-linux|libc\.so|libm\.so|libdl\.so|libpthread|librt\.so|libgcc_s|libstdc\+\+|libX11|libxcb|libGL|libEGL|libwayland|libdbus|libsystemd|libasound|libpulse'
+
+          for EXT in addons/gdopencv/bin/linux/libgdopencv.*.so; do
+            ldd "$EXT" | awk '/=> \// {print $3}' | grep -Ev "$EXCLUDE" | while read lib; do
+              cp -n "$lib" addons/gdopencv/bin/linux/libs/ || true
+            done
           done
+
+          # Iterate until closure is complete (deps of deps of deps...)
+          for i in 1 2 3 4 5; do
+            for lib in addons/gdopencv/bin/linux/libs/*.so*; do
+              ldd "$lib" | awk '/=> \// {print $3}' | grep -Ev "$EXCLUDE" | while read dep; do
+                cp -n "$dep" addons/gdopencv/bin/linux/libs/ || true
+              done
+            done
+          done
+
           for ext in addons/gdopencv/bin/linux/libgdopencv.*.so; do
             patchelf --set-rpath '$ORIGIN/libs' "$ext"
           done
           for lib in addons/gdopencv/bin/linux/libs/*.so*; do
             patchelf --set-rpath '$ORIGIN' "$lib" 2>/dev/null || true
           done
-          
+
+          echo "Bundled libs:"
+          ls -la addons/gdopencv/bin/linux/libs/
     
       - name: Bundle Windows DLLs
         if: matrix.platform == 'windows'
