@@ -86,7 +86,7 @@ jobs:
             -DBUILD_opencv_apps=OFF \
             -DBUILD_JAVA=OFF \
             -DBUILD_opencv_python3=OFF \
-            -DBUILD_WITH_STATIC_CRT=OFF \
+            -DBUILD_WITH_STATIC_CRT=ON \
             -DCMAKE_INSTALL_PREFIX="${GITHUB_WORKSPACE}/opencv-install" \
             $EXTRA_FLAGS
 
