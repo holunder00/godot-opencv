@@ -6,6 +6,10 @@ on:
     tags: ['v*']
   workflow_dispatch:
 
+env:
+  OPENCV_VERSION: 4.10.0
+  OPENCV_MODULES: core,imgproc,imgcodecs,videoio,objdetect,features2d,calib3d
+
 jobs:
   build:
     strategy:
@@ -13,13 +17,10 @@ jobs:
         include:
           - platform: linux
             os: ubuntu-22.04
-            output_dir: addons/gdopencv/bin/linux
           - platform: windows
             os: windows-latest
-            output_dir: addons/gdopencv/bin/windows
           - platform: macos
             os: macos-latest
-            output_dir: addons/gdopencv/bin/macos
 
     runs-on: ${{ matrix.os }}
 
@@ -35,128 +36,126 @@ jobs:
       - name: Install SCons
         run: pip install scons
 
-      # --- Platform-specific OpenCV ---
-      - name: Install OpenCV (Linux)
+      # V4L2 headers for webcam support on Linux
+      - name: Linux build deps
         if: matrix.platform == 'linux'
+        run: sudo apt-get update && sudo apt-get install -y libv4l-dev
+
+      # --- Static OpenCV: identical build on all platforms ---
+      - name: Cache OpenCV
+        id: cache-opencv
+        uses: actions/cache@v4
+        with:
+          path: opencv-install
+          key: opencv-${{ env.OPENCV_VERSION }}-static-${{ matrix.platform }}-v1
+          # bump the -v1 suffix whenever you change the cmake flags below
+
+      - name: Build OpenCV (static)
+        if: steps.cache-opencv.outputs.cache-hit != 'true'
+        shell: bash
         run: |
-          sudo apt-get update
-          sudo apt-get install -y libopencv-dev patchelf
+          git clone --depth 1 --branch ${OPENCV_VERSION} https://github.com/opencv/opencv.git
 
-      - name: Install OpenCV (macOS)
-        if: matrix.platform == 'macos'
-        run: brew install opencv
+          EXTRA_FLAGS=""
+          if [ "${{ matrix.platform }}" == "macos" ]; then
+            EXTRA_FLAGS="-DCMAKE_OSX_ARCHITECTURES=arm64"
+          fi
 
-      - name: Install OpenCV (Windows)
-        if: matrix.platform == 'windows'
-        shell: powershell
+          cmake -S opencv -B opencv-build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DBUILD_SHARED_LIBS=OFF \
+            -DBUILD_LIST=${OPENCV_MODULES} \
+            -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
+            -DWITH_FFMPEG=OFF \
+            -DWITH_GSTREAMER=OFF \
+            -DWITH_GTK=OFF \
+            -DWITH_QT=OFF \
+            -DWITH_OPENEXR=OFF \
+            -DWITH_TIFF=OFF \
+            -DWITH_WEBP=OFF \
+            -DWITH_OPENJPEG=OFF \
+            -DWITH_JASPER=OFF \
+            -DWITH_IPP=OFF \
+            -DWITH_V4L=ON \
+            -DBUILD_ZLIB=ON \
+            -DBUILD_PNG=ON \
+            -DBUILD_JPEG=ON \
+            -DBUILD_TESTS=OFF \
+            -DBUILD_PERF_TESTS=OFF \
+            -DBUILD_EXAMPLES=OFF \
+            -DBUILD_opencv_apps=OFF \
+            -DBUILD_JAVA=OFF \
+            -DBUILD_opencv_python3=OFF \
+            -DBUILD_WITH_STATIC_CRT=OFF \
+            -DCMAKE_INSTALL_PREFIX="${GITHUB_WORKSPACE}/opencv-install" \
+            $EXTRA_FLAGS
+
+          cmake --build opencv-build --config Release -j4
+          cmake --build opencv-build --config Release --target install
+
+      - name: Export OpenCV path
+        shell: bash
+        run: echo "OPENCV_DIR=${GITHUB_WORKSPACE}/opencv-install" >> $GITHUB_ENV
+
+      - name: Debug - show OpenCV install layout
+        shell: bash
         run: |
-          $url = "https://github.com/opencv/opencv/releases/download/4.10.0/opencv-4.10.0-windows.exe"
-          Invoke-WebRequest -Uri $url -OutFile opencv.exe
-          Start-Process -FilePath opencv.exe -ArgumentList "-o`"C:\opencv`" -y" -Wait
-          echo "OPENCV_DIR=C:\opencv\opencv\build" >> $env:GITHUB_ENV   
+          find opencv-install -name "*.a" -o -name "*.lib" | head -40
 
-      # --- Build ---
+      # --- Build godot-cpp + extension ---
       - name: Build godot-cpp
         shell: bash
         run: |
-          if [ "${{ matrix.platform }}" == "macos" ]; then
-            scons -C godot-cpp platform=macos target=template_debug arch=arm64 -j4
-            scons -C godot-cpp platform=macos target=template_release arch=arm64 -j4
-          else
-            scons -C godot-cpp platform=${{ matrix.platform }} target=template_debug -j4
-            scons -C godot-cpp platform=${{ matrix.platform }} target=template_release -j4
-          fi
-      
-      - name: Build extension (Debug)
-        shell: bash
-        run: |
-          if [ "${{ matrix.platform }}" == "macos" ]; then
-            scons -C build platform=macos target=template_debug arch=arm64 -j4 verbose=yes
-          else
-            scons -C build platform=${{ matrix.platform }} target=template_debug -j4 verbose=yes
-          fi
+          ARCH_FLAG=""
+          [ "${{ matrix.platform }}" == "macos" ] && ARCH_FLAG="arch=arm64"
+          scons -C godot-cpp platform=${{ matrix.platform }} target=template_debug $ARCH_FLAG -j4
+          scons -C godot-cpp platform=${{ matrix.platform }} target=template_release $ARCH_FLAG -j4
 
-      - name: Build extension (Release)
+      - name: Build extension
         shell: bash
         run: |
-          if [ "${{ matrix.platform }}" == "macos" ]; then
-            scons -C build platform=macos target=template_release arch=arm64 -j4 verbose=yes
-          else
-            scons -C build platform=${{ matrix.platform }} target=template_release -j4 verbose=yes
-          fi
-          
+          ARCH_FLAG=""
+          [ "${{ matrix.platform }}" == "macos" ] && ARCH_FLAG="arch=arm64"
+          scons -C build platform=${{ matrix.platform }} target=template_debug $ARCH_FLAG -j4 verbose=yes
+          scons -C build platform=${{ matrix.platform }} target=template_release $ARCH_FLAG -j4 verbose=yes
+
       - name: Debug - list built files
-        run: find . -name "*.dylib" -o -name "*.so" -o -name "*.dll" | head -20
-      
-      # --- Bundle dependencies ---
-      - name: Bundle Linux libs
+        shell: bash
+        run: find . -name "*.dylib" -o -name "*.so" -o -name "*.dll" | grep -v godot-cpp | head -20
+
+      # --- Collect binaries (no dependency bundling needed) ---
+      - name: Collect binaries
+        shell: bash
+        run: |
+          mkdir -p out/${{ matrix.platform }}
+          cp build/addons/gdopencv/bin/${{ matrix.platform }}/* out/${{ matrix.platform }}/
+          ls -la out/${{ matrix.platform }}
+
+      - name: Sanity check (Linux)
         if: matrix.platform == 'linux'
         run: |
-          mkdir -p addons/gdopencv/bin/linux/libs
-          cp build/addons/gdopencv/bin/linux/*.so addons/gdopencv/bin/linux/ 2>/dev/null || true
-
-          # Libs we should NOT bundle (guaranteed on any Linux, or dangerous to override)
-          EXCLUDE='linux-vdso|ld-linux|libc\.so|libm\.so|libdl\.so|libpthread|librt\.so|libgcc_s|libstdc\+\+|libX11|libxcb|libGL|libEGL|libwayland|libdbus|libsystemd|libasound|libpulse'
-
-          for EXT in addons/gdopencv/bin/linux/libgdopencv.*.so; do
-            ldd "$EXT" | awk '/=> \// {print $3}' | grep -Ev "$EXCLUDE" | while read lib; do
-              cp -n "$lib" addons/gdopencv/bin/linux/libs/ || true
-            done
+          for f in out/linux/*.so; do
+            echo "== $f"; ldd "$f"
+            if ldd "$f" | grep -E "opencv|libav|libgstreamer"; then
+              echo "ERROR: unexpected shared dependency!"; exit 1
+            fi
           done
 
-          # Iterate until closure is complete (deps of deps of deps...)
-          for i in 1 2 3 4 5; do
-            for lib in addons/gdopencv/bin/linux/libs/*.so*; do
-              ldd "$lib" | awk '/=> \// {print $3}' | grep -Ev "$EXCLUDE" | while read dep; do
-                cp -n "$dep" addons/gdopencv/bin/linux/libs/ || true
-              done
-            done
-          done
-
-          for ext in addons/gdopencv/bin/linux/libgdopencv.*.so; do
-            patchelf --set-rpath '$ORIGIN/libs' "$ext"
-          done
-          for lib in addons/gdopencv/bin/linux/libs/*.so*; do
-            patchelf --set-rpath '$ORIGIN' "$lib" 2>/dev/null || true
-          done
-
-          echo "Bundled libs:"
-          ls -la addons/gdopencv/bin/linux/libs/
-    
-      - name: Bundle Windows DLLs
-        if: matrix.platform == 'windows'
-        shell: powershell
-        run: |
-          New-Item -ItemType Directory -Force -Path addons/gdopencv/bin/windows
-          Copy-Item build/addons/gdopencv/bin/windows/*.dll addons/gdopencv/bin/windows/ -ErrorAction SilentlyContinue
-          $dlls = Get-ChildItem -Path "$env:OPENCV_DIR" -Recurse -Filter "opencv_world*.dll"
-          foreach ($dll in $dlls) {
-            Copy-Item $dll.FullName addons/gdopencv/bin/windows/
-          }
-
-      - name: Bundle macOS libs
+      - name: Sanity check (macOS)
         if: matrix.platform == 'macos'
         run: |
-          mkdir -p addons/gdopencv/bin/macos/libs
-          cp build/addons/gdopencv/bin/macos/*.dylib addons/gdopencv/bin/macos/
-          BREW_PREFIX=$(brew --prefix)
-          EXT=$(find addons/gdopencv/bin/macos -name "libgdopencv.macos.template_debug.*.dylib" | head -1)
-          otool -L "$EXT" | grep "$BREW_PREFIX" | awk '{print $1}' | while read lib; do
-            cp "$lib" addons/gdopencv/bin/macos/libs/
-          done
-          for lib in addons/gdopencv/bin/macos/libs/*.dylib; do
-            lib_name=$(basename "$lib")
-            install_name_tool -id "@rpath/$lib_name" "$lib"
-          done
-          for ext in addons/gdopencv/bin/macos/libgdopencv.macos.*.dylib; do
-            install_name_tool -add_rpath @loader_path/libs "$ext" 2>/dev/null || true
+          for f in out/macos/*.dylib; do
+            echo "== $f"; otool -L "$f"
+            if otool -L "$f" | grep -E "opencv|/opt/homebrew|/usr/local/opt"; then
+              echo "ERROR: unexpected shared dependency!"; exit 1
+            fi
           done
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.platform }}-binaries
-          path: addons/gdopencv/bin/${{ matrix.platform == 'linux' && 'linux' || matrix.platform == 'windows' && 'windows' || 'macos' }}/
+          path: out/${{ matrix.platform }}/
 
   package:
     needs: build
@@ -186,7 +185,6 @@ jobs:
         run: |
           cd addons
           zip -r ../gdopencv-addon.zip gdopencv/
-          cd ..
 
       - name: Upload addon
         uses: actions/upload-artifact@v4
