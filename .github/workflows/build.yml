@@ -98,7 +98,6 @@ jobs:
             -DWITH_LAPACK=OFF \
             -DWITH_PROTOBUF=OFF \
             -DWITH_ADE=OFF \
-
             -DCMAKE_INSTALL_PREFIX="${GITHUB_WORKSPACE}/opencv-install" \
             $EXTRA_FLAGS
 
@@ -150,7 +149,6 @@ jobs:
             echo "== $f"; ldd "$f"
 
             if ldd "$f" | grep -E "libopencv|libav|libgstreamer"; then
-
               echo "ERROR: unexpected shared dependency!"; exit 1
             fi
           done
@@ -162,7 +160,6 @@ jobs:
             echo "== $f"; otool -L "$f"
             
             if otool -L "$f" | tail -n +2 | grep -E "libopencv|/opt/homebrew|/usr/local/opt"; then
-
               echo "ERROR: unexpected shared dependency!"; exit 1
             fi
           done
