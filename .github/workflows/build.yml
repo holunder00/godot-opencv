@@ -21,6 +21,10 @@ jobs:
             os: windows-latest
           - platform: macos
             os: macos-latest
+          #- platform: windows
+           # os: windows-latest
+         # - platform: macos
+          #  os: macos-latest
 
     runs-on: ${{ matrix.os }}
 
@@ -48,6 +52,8 @@ jobs:
         with:
           path: opencv-install
           key: opencv-${{ env.OPENCV_VERSION }}-static-${{ matrix.platform }}-v2
+        
+
           # bump the -v1 suffix whenever you change the cmake flags below
 
       - name: Build OpenCV (static)
@@ -92,6 +98,7 @@ jobs:
             -DWITH_LAPACK=OFF \
             -DWITH_PROTOBUF=OFF \
             -DWITH_ADE=OFF \
+
             -DCMAKE_INSTALL_PREFIX="${GITHUB_WORKSPACE}/opencv-install" \
             $EXTRA_FLAGS
 
@@ -141,7 +148,9 @@ jobs:
         run: |
           for f in out/linux/*.so; do
             echo "== $f"; ldd "$f"
+
             if ldd "$f" | grep -E "libopencv|libav|libgstreamer"; then
+
               echo "ERROR: unexpected shared dependency!"; exit 1
             fi
           done
@@ -151,7 +160,9 @@ jobs:
         run: |
           for f in out/macos/*.dylib; do
             echo "== $f"; otool -L "$f"
+            
             if otool -L "$f" | tail -n +2 | grep -E "libopencv|/opt/homebrew|/usr/local/opt"; then
+
               echo "ERROR: unexpected shared dependency!"; exit 1
             fi
           done
