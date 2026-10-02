@@ -4,6 +4,8 @@
 #include <godot_cpp/variant/utility_functions.hpp>
 #include <opencv2/imgproc.hpp>
 
+#include <chrono>
+
 #ifdef __linux__
 #include <unistd.h>
 #endif
@@ -125,6 +127,14 @@ cv::Mat CVCamera::ensure_bgr(const cv::Mat &in, int expected_height) {
 
 // ---------------------------------------------------------------------------
 // Capture thread
+//
+// Threading contract: while thread_running is true, this thread is the SOLE
+// owner of `cap`. cap.read() blocks for up to a full frame interval, so it
+// must never run under a mutex the main thread might want — that starves the
+// main thread (seconds-long stalls; std::mutex has no fairness guarantee).
+// Main-thread communication happens only via:
+//   - pending_props (in):  property changes, applied between reads
+//   - latest_frame  (out): most recent BGR frame, swapped under frame_mutex
 // ---------------------------------------------------------------------------
 
 void CVCamera::capture_loop() {
@@ -132,12 +142,21 @@ void CVCamera::capture_loop() {
     bool warned = false;
 
     while (thread_running.load()) {
-        bool ok;
+        // Apply property changes requested from the main thread.
         {
-            std::lock_guard<std::mutex> lock(cap_mutex);
-            ok = cap.read(frame);
+            std::lock_guard<std::mutex> lock(prop_mutex);
+            for (const auto &p : pending_props) {
+                cap.set(p.first, p.second);
+            }
+            pending_props.clear();
         }
+
+        // Blocking read — intentionally NOT under any lock.
+        bool ok = cap.read(frame);
+
         if (!ok || frame.empty()) {
+            // Don't spin at 100% CPU if the device wedges or disconnects.
+            std::this_thread::sleep_for(std::chrono::milliseconds(5));
             continue;
         }
 
@@ -178,7 +197,7 @@ bool CVCamera::open(int index) {
 #endif
 
     if (!cap.isOpened()) {
-        UtilityFunctions::print("CVCamera: Failed to open camera ", index);
+        UtilityFunctions::push_warning("CVCamera: Failed to open camera ", index);
         return false;
     }
 
@@ -192,22 +211,34 @@ bool CVCamera::open(int index) {
     cap.set(cv::CAP_PROP_FRAME_WIDTH, resolution.x);
     cap.set(cv::CAP_PROP_FRAME_HEIGHT, resolution.y);
 
-    // Read back what was actually negotiated — requests can be silently ignored.
+    // Snapshot everything the main thread may ask about later. This happens
+    // BEFORE the capture thread starts, so no locking is needed — afterwards
+    // these are read-only and cap belongs to the thread.
     negotiated_fourcc = fourcc_to_string(cap.get(cv::CAP_PROP_FOURCC));
     resolution.x = (int)cap.get(cv::CAP_PROP_FRAME_WIDTH);
     resolution.y = (int)cap.get(cv::CAP_PROP_FRAME_HEIGHT);
+    info.backend = cap.getBackendName();
+    info.fourcc = negotiated_fourcc;
+    info.fps = cap.get(cv::CAP_PROP_FPS);
+    info.convert_rgb = cap.get(cv::CAP_PROP_CONVERT_RGB);
 
     camera_index = index;
     m_opened.store(true);
     use_thread = true;
 
+    {
+        std::lock_guard<std::mutex> lock(prop_mutex);
+        pending_props.clear();
+    }
+    new_frame_available.store(false);
+
     thread_running.store(true);
     capture_thread = std::thread(&CVCamera::capture_loop, this);
 
     UtilityFunctions::print("CVCamera: Opened camera ", index,
-            " backend=", String(cap.getBackendName().c_str()),
-            " fourcc=", String(negotiated_fourcc.c_str()),
-            " ", resolution.x, "x", resolution.y);
+            " backend=", String(info.backend.c_str()),
+            " fourcc=", String(info.fourcc.c_str()),
+            " ", resolution.x, "x", resolution.y, " @", info.fps, "fps");
     return true;
 }
 
@@ -216,13 +247,17 @@ bool CVCamera::open_file(const String &path) {
 
     std::string std_path(path.utf8().get_data());
     if (!cap.open(std_path)) {
-        UtilityFunctions::print("CVCamera: Failed to open file ", path);
+        UtilityFunctions::push_warning("CVCamera: Failed to open file ", path);
         return false;
     }
 
     m_opened.store(true);
-    use_thread = false; // files are read sequentially, no thread
+    use_thread = false; // files are read sequentially on the calling thread
     negotiated_fourcc = fourcc_to_string(cap.get(cv::CAP_PROP_FOURCC));
+    info.backend = cap.getBackendName();
+    info.fourcc = negotiated_fourcc;
+    info.fps = cap.get(cv::CAP_PROP_FPS);
+    info.convert_rgb = cap.get(cv::CAP_PROP_CONVERT_RGB);
     UtilityFunctions::print("CVCamera: Opened file ", path);
     return true;
 }
@@ -254,7 +289,7 @@ Ref<CVImage> CVCamera::read_frame() {
     if (!is_open()) return Ref<CVImage>();
 
     if (use_thread) {
-        // Non-blocking: return the latest frame, or null if nothing new.
+        // Non-blocking: latest frame, or null if nothing new since last read.
         if (!new_frame_available.load()) {
             return Ref<CVImage>();
         }
@@ -307,13 +342,16 @@ CVCamera::PixelFormat CVCamera::get_pixel_format() const {
 
 void CVCamera::set_resolution(const Vector2i &res) {
     resolution = res;
-    if (is_open()) {
-        std::lock_guard<std::mutex> lock(cap_mutex);
-        cap.set(cv::CAP_PROP_FRAME_WIDTH, res.x);
-        cap.set(cv::CAP_PROP_FRAME_HEIGHT, res.y);
-        resolution.x = (int)cap.get(cv::CAP_PROP_FRAME_WIDTH);
-        resolution.y = (int)cap.get(cv::CAP_PROP_FRAME_HEIGHT);
+    if (!is_open()) {
+        return; // applied on next open()
     }
+    if (use_thread) {
+        UtilityFunctions::push_warning(
+                "CVCamera: changing resolution on a live camera requires close() + open()");
+        return;
+    }
+    cap.set(cv::CAP_PROP_FRAME_WIDTH, res.x);
+    cap.set(cv::CAP_PROP_FRAME_HEIGHT, res.y);
 }
 
 Vector2i CVCamera::get_resolution() const {
@@ -321,20 +359,16 @@ Vector2i CVCamera::get_resolution() const {
 }
 
 void CVCamera::set_fps(double fps) {
-    if (is_open()) {
-        std::lock_guard<std::mutex> lock(cap_mutex);
-        cap.set(cv::CAP_PROP_FPS, fps);
-    }
+    if (!is_open()) return;
+    set_property(cv::CAP_PROP_FPS, fps); // routed via queue on live cameras
 }
 
 double CVCamera::get_fps() const {
-    if (!is_open()) return 0;
-    std::lock_guard<std::mutex> lock(cap_mutex);
-    return cap.get(cv::CAP_PROP_FPS);
+    return is_open() ? info.fps : 0.0;
 }
 
 // ---------------------------------------------------------------------------
-// Introspection
+// Introspection (served from the open()-time snapshot — never touches cap)
 // ---------------------------------------------------------------------------
 
 String CVCamera::get_fourcc() const {
@@ -344,14 +378,12 @@ String CVCamera::get_fourcc() const {
 Dictionary CVCamera::get_capture_info() const {
     Dictionary d;
     if (!is_open()) return d;
-
-    std::lock_guard<std::mutex> lock(cap_mutex);
-    d["backend"] = String(cap.getBackendName().c_str());
-    d["fourcc"] = String(negotiated_fourcc.c_str());
-    d["width"] = (int)cap.get(cv::CAP_PROP_FRAME_WIDTH);
-    d["height"] = (int)cap.get(cv::CAP_PROP_FRAME_HEIGHT);
-    d["fps"] = cap.get(cv::CAP_PROP_FPS);
-    d["convert_rgb"] = cap.get(cv::CAP_PROP_CONVERT_RGB);
+    d["backend"] = String(info.backend.c_str());
+    d["fourcc"] = String(info.fourcc.c_str());
+    d["width"] = resolution.x;
+    d["height"] = resolution.y;
+    d["fps"] = info.fps;
+    d["convert_rgb"] = info.convert_rgb;
     return d;
 }
 
@@ -360,33 +392,52 @@ Dictionary CVCamera::get_capture_info() const {
 // ---------------------------------------------------------------------------
 
 int CVCamera::get_frame_count() const {
-    if (!is_open()) return 0;
-    std::lock_guard<std::mutex> lock(cap_mutex);
+    if (!is_open() || use_thread) return 0; // live cameras have no frame count
     return (int)cap.get(cv::CAP_PROP_FRAME_COUNT);
 }
 
 int CVCamera::get_current_frame() const {
-    if (!is_open()) return 0;
-    std::lock_guard<std::mutex> lock(cap_mutex);
+    if (!is_open() || use_thread) return 0;
     return (int)cap.get(cv::CAP_PROP_POS_FRAMES);
 }
 
 void CVCamera::set_current_frame(int frame) {
-    if (is_open()) {
-        std::lock_guard<std::mutex> lock(cap_mutex);
-        cap.set(cv::CAP_PROP_POS_FRAMES, frame);
-    }
+    if (!is_open() || use_thread) return;
+    cap.set(cv::CAP_PROP_POS_FRAMES, frame);
 }
 
 void CVCamera::set_property(int prop_id, double value) {
-    if (is_open()) {
-        std::lock_guard<std::mutex> lock(cap_mutex);
+    if (!is_open()) return;
+    if (use_thread) {
+        // Live camera: cap belongs to the capture thread. Queue the change;
+        // it's applied before the next read.
+        std::lock_guard<std::mutex> lock(prop_mutex);
+        pending_props.emplace_back(prop_id, value);
+    } else {
         cap.set(prop_id, value);
     }
 }
 
 double CVCamera::get_property(int prop_id) const {
     if (!is_open()) return 0;
-    std::lock_guard<std::mutex> lock(cap_mutex);
+    if (use_thread) {
+        // Querying cap from here would reintroduce the contention this design
+        // removes. Serve what we know from the open()-time snapshot.
+        switch (prop_id) {
+            case cv::CAP_PROP_FPS: return info.fps;
+            case cv::CAP_PROP_FRAME_WIDTH: return resolution.x;
+            case cv::CAP_PROP_FRAME_HEIGHT: return resolution.y;
+            case cv::CAP_PROP_FOURCC: return (double)cv::VideoWriter::fourcc(
+                    negotiated_fourcc.size() > 0 ? negotiated_fourcc[0] : ' ',
+                    negotiated_fourcc.size() > 1 ? negotiated_fourcc[1] : ' ',
+                    negotiated_fourcc.size() > 2 ? negotiated_fourcc[2] : ' ',
+                    negotiated_fourcc.size() > 3 ? negotiated_fourcc[3] : ' ');
+            default:
+                UtilityFunctions::push_warning(
+                        "CVCamera: get_property(", prop_id,
+                        ") on a live camera only supports cached values");
+                return 0;
+        }
+    }
     return cap.get(prop_id);
 }

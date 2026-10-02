@@ -4,7 +4,8 @@
 #include "opencv_camera.h"
 #include "opencv_camera_texture.h"
 #include "opencv_utils.h"
-
+#include "cv_camera_editor_plugin.h"
+#include <godot_cpp/classes/editor_plugin_registration.hpp>
 #include <gdextension_interface.h>
 #include <godot_cpp/core/defs.hpp>
 #include <godot_cpp/godot.hpp>
@@ -12,13 +13,23 @@
 using namespace godot;
 
 void initialize_opencv_module(ModuleInitializationLevel p_level) {
-    if (p_level != MODULE_INITIALIZATION_LEVEL_SCENE) {
-        return;
+    if (p_level == MODULE_INITIALIZATION_LEVEL_SCENE) {
+        ClassDB::register_class<CVImage>();
+        ClassDB::register_class<CVCamera>();
+        ClassDB::register_class<CVCameraTexture>();
+        ClassDB::register_class<CVUtils>();
+        //GDREGISTER_CLASS(CVCamera);
+        //GDREGISTER_CLASS(CVImage);
+        //GDREGISTER_CLASS(CVCameraTexture);
+        // ... whatever else you register ...
     }
-    ClassDB::register_class<CVImage>();
-    ClassDB::register_class<CVCamera>();
-    ClassDB::register_class<CVCameraTexture>();
-    ClassDB::register_class<CVUtils>();
+
+    if (p_level == MODULE_INITIALIZATION_LEVEL_EDITOR) {
+        UtilityFunctions::print("CVCamera: registering editor plugin");
+        GDREGISTER_INTERNAL_CLASS(CVCameraEditorPlugin);
+        EditorPlugins::add_by_type<CVCameraEditorPlugin>();
+    }
+    
 }
 
 void uninitialize_opencv_module(ModuleInitializationLevel p_level) {

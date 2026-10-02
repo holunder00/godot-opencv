@@ -1,0 +1,37 @@
+How to compile on linux
+
+1.) compile and add opencv-static to path:
+
+	cd ~/src   # anywhere outside the repo is fine
+	git clone --depth 1 --branch 4.10.0 https://github.com/opencv/opencv.git
+
+	cmake -S opencv -B opencv-build \
+	-DCMAKE_BUILD_TYPE=Release \
+	-DBUILD_SHARED_LIBS=OFF \
+	-DBUILD_LIST=core,imgproc,imgcodecs,videoio,objdetect,features2d,calib3d \
+	-DCMAKE_POSITION_INDEPENDENT_CODE=ON \
+	-DWITH_FFMPEG=OFF -DWITH_GSTREAMER=OFF -DWITH_GTK=OFF -DWITH_QT=OFF \
+	-DWITH_OPENEXR=OFF -DWITH_TIFF=OFF -DWITH_WEBP=OFF \
+	-DWITH_OPENJPEG=OFF -DWITH_JASPER=OFF -DWITH_IPP=OFF \
+	-DWITH_OBSENSOR=OFF \
+	-DWITH_V4L=ON \
+	-DBUILD_ZLIB=ON -DBUILD_PNG=ON -DBUILD_JPEG=ON \
+	-DBUILD_TESTS=OFF -DBUILD_PERF_TESTS=OFF -DBUILD_EXAMPLES=OFF \
+	-DBUILD_opencv_apps=OFF -DBUILD_JAVA=OFF -DBUILD_opencv_python3=OFF \
+	-DCMAKE_INSTALL_PREFIX="$HOME/opencv-install"
+
+	cmake --build opencv-build -j$(nproc)
+	cmake --build opencv-build --target install
+
+
+2.) Export path to opencv
+
+	export OPENCV_DIR="$HOME/opencv-install"
+
+
+3.) clone from git and compile godot-cpp and the opencv extension
+
+	git clone
+	git submodule update --init --recursive
+	scons -C godot-cpp platform=linux target=template_debug -j$(nproc)
+	scons -C build platform=linux target=template_debug -j$(nproc) verbose=yes
