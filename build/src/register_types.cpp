@@ -2,6 +2,7 @@
 
 #include "opencv_image.h"
 #include "opencv_camera.h"
+#include "opencv_camera_texture.h"
 #include "opencv_utils.h"
 
 #include <gdextension_interface.h>
@@ -16,6 +17,7 @@ void initialize_opencv_module(ModuleInitializationLevel p_level) {
     }
     ClassDB::register_class<CVImage>();
     ClassDB::register_class<CVCamera>();
+    ClassDB::register_class<CVCameraTexture>();
     ClassDB::register_class<CVUtils>();
 }
 
