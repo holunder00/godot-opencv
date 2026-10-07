@@ -1,5 +1,7 @@
 How to compile on linux
 
+0.) Install all necesary built tools scons, libgcc, libstdc++-static, ....
+
 1.) compile and add opencv-static to path:
 
 	cd ~/src   # anywhere outside the repo is fine
