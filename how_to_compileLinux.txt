@@ -33,5 +33,6 @@ How to compile on linux
 
 	git clone "with url"
 	git submodule update --init --recursive
+	cd godot-opencv
 	scons -C godot-cpp platform=linux target=template_debug -j$(nproc)
 	scons -C build platform=linux target=template_debug -j$(nproc) verbose=yes
