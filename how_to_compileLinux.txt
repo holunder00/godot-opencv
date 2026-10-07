@@ -31,7 +31,7 @@ How to compile on linux
 
 3.) clone from git and compile godot-cpp and the opencv extension
 
-	git clone
+	git clone "with url"
 	git submodule update --init --recursive
 	scons -C godot-cpp platform=linux target=template_debug -j$(nproc)
 	scons -C build platform=linux target=template_debug -j$(nproc) verbose=yes
