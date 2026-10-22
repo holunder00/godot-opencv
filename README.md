@@ -1,16 +1,16 @@
 #####################################################################################################################################################
 #####################################################################################################################################################
-##This GDExtension was made by Holunder Heiss for "Interplayful Environments - University of Arts Linz" with the purpose do use Godot as a media art tool.
+##This GDExtension was made by Holunder Heiss for "Interplayful Environments - University of Arts Linz" with the purpose f using Godot as a media art tool.
 
-With this Extension you can access a Webcam on Windows/Linux/OSX and use basic OpenCV features. 
-It is possible to use the Camera in GDScript and also use the Camera Image directly as a texture.
+With this extension you can access a webcam on Windows/Linux/OSX and use basic OpenCV features. 
+It is possible to use the camera in GDScript and also use the camera image directly as a texture.
 
-At the moment there is no possibilitie to detect the camera config automatically. You have to select the right camera index, and the Pixelformat yourself.
+At the moment there is no possibility to detect the camera config automatically. You have to select the right camera index and the Pixelformat yourself.
 
-Some of the OPENCV tools are implementet at the moment does are this ones (see the examples):<br />
+Some of the OPENCV tools that are implementet at the moment are these ones (see the examples):<br />
 <ul>
-    <li>Using Camera in Gamemode from GDScript</li>
-    <li>Directly use Camera Image as Texture "CVCameraTexture" in Editor and Game</li>
+    <li>Using Camera in Game Mode from GDScript</li>
+    <li>Directly use the camera image as texture "CVCameraTexture" in the editor and game</li>
     <li>Face Detection (the Haircascade files have to be downloaded and referenced)</li>
     <li>Basic OpenCV drawing functionality</li>
     <li>Image Filters: </li>
@@ -30,9 +30,9 @@ Some of the OPENCV tools are implementet at the moment does are this ones (see t
 AI information:
 The Extension is created with a little help from Claude AI
 
-To use it Download the Release built or built it yourself. For Linux there are some basic built Instructions in "how_to_compileLinux.txt", or you use the git built Actions.
+To use it download the release built or build it yourself. For Linux there are some basic built instructions in "how_to_compileLinux.txt", or just use the git built actions.
 
-See the Examples on how to use it.
+See the examples on how to use it.
 
 
 ## Dependencies
