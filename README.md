@@ -1,6 +1,6 @@
 #####################################################################################################################################################
 #####################################################################################################################################################
-##This GDExtension was made by Holunder Heiss for "Interplayful Environments - University of Arts Linz" with the purpose f using Godot as a media art tool.
+##This GDExtension was made by Holunder Heiss for "Interplayful Environments - University of Arts Linz" with the purpose of using Godot as a media art tool.
 
 With this extension you can access a webcam on Windows/Linux/OSX and use basic OpenCV features. 
 It is possible to use the camera in GDScript and also use the camera image directly as a texture.
