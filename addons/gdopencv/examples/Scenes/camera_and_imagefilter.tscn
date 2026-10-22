@@ -1,0 +1,11 @@
+[gd_scene format=3 uid="uid://c1n8ceebtroc3"]
+
+[ext_resource type="Script" uid="uid://bfb51peka3ujs" path="res://addons/gdopencv/examples/Scripts/camera_demo.gd" id="1_n5y5m"]
+
+[node name="Camera_and_Imagefilter" type="Node2D" unique_id=239255215]
+script = ExtResource("1_n5y5m")
+cam_index = 4
+image_effect = 9
+
+[node name="Sprite2D" type="Sprite2D" parent="." unique_id=751165053]
+centered = false

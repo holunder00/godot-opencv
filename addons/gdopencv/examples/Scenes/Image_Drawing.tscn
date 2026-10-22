@@ -1,0 +1,37 @@
+[gd_scene format=3 uid="uid://dv5rrouyoi027"]
+
+[ext_resource type="Script" uid="uid://jmdltvg5q6vg" path="res://addons/gdopencv/examples/Scripts/image_drawing.gd" id="1_ydh0c"]
+
+[node name="ImageDrawing" type="Node2D" unique_id=1023293829]
+script = ExtResource("1_ydh0c")
+
+[node name="TextureRect" type="TextureRect" parent="." unique_id=1271648986]
+offset_right = 40.0
+offset_bottom = 40.0
+
+[node name="ConvertedImage1" type="TextureRect" parent="." unique_id=1308773208]
+offset_left = 620.0
+offset_right = 620.0
+
+[node name="ConvertedImage2" type="TextureRect" parent="." unique_id=1354647753]
+offset_left = 820.0
+offset_right = 820.0
+
+[node name="ConvertedImage3" type="TextureRect" parent="." unique_id=1842791826]
+offset_left = 620.0
+offset_top = 200.0
+offset_right = 620.0
+offset_bottom = 200.0
+
+[node name="ConvertedImage4" type="TextureRect" parent="." unique_id=1252802181]
+offset_left = 820.0
+offset_top = 200.0
+offset_right = 820.0
+offset_bottom = 200.0
+
+[node name="Drawing" type="TextureRect" parent="." unique_id=1493811761]
+offset_left = 620.0
+offset_top = 419.0
+offset_right = 660.0
+offset_bottom = 459.0
+scale = Vector2(0.5, 0.5)

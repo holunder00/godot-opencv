@@ -7,24 +7,23 @@ It is possible to use the Camera in GDScript and also use the Camera Image direc
 
 At the moment there is no possibilitie to detect the camera config automatically. You have to select the right camera index, and the Pixelformat yourself.
 
-Some of the OPENCV tools are implementet at the moment does are this ones (see the examples):
-    - Receiving Camera texture in Editor and in Game in Code and as Texture
-    - Face Detection (the Haircascade files have to be downloaded and referenced)
-    - Basic OpenCV drawing functionality
-    - Image Filters: 
-        blur
-        gaussian
-        blur
-        median blur
-        bilateral Filter
-        canny edge detection
-        sobel
-        laplacian
-        threshold
-        adaptive threshold
-        dilate
-        erode
-        morphology_ex
+Some of the OPENCV tools are implementet at the moment does are this ones (see the examples):<br />
+    - Receiving Camera texture in Editor and in Game in Code and as Texture<br />
+    - Face Detection (the Haircascade files have to be downloaded and referenced)<br />
+    - Basic OpenCV drawing functionality<br />
+    - Image Filters: <br />
+        blur<br />
+        gaussian blur<br />
+        median blur<br />
+        #bilateral Filter<br />
+        canny edge detection<br />
+        #sobel<br />
+        #laplacian<br />
+        threshold<br />
+        #adaptive threshold<br />
+        dilate<br />
+        erode<br />
+        morphology_ex<br />
         
 AI information:
 The Extension is created with a little help from Claude AI

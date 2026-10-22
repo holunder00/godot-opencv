@@ -169,7 +169,7 @@ bool CVCameraTexture::get_editor_preview() const {
 void CVCameraTexture::set_active(bool p_active) {
     if (active == p_active) return;
     active = p_active;
-    if (active) _start(); else _stop();
+   if (_should_run()) _start(); else _stop();
 }
 
 bool CVCameraTexture::_try_open() {

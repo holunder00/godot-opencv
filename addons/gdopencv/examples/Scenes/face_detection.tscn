@@ -1,0 +1,11 @@
+[gd_scene format=3 uid="uid://ddu1y03ydrsxg"]
+
+[ext_resource type="Script" uid="uid://cwmhou4xr6wv6" path="res://addons/gdopencv/examples/Scripts/face_detection.gd" id="1_x2o5b"]
+
+[node name="FaceDetection" type="Node2D" unique_id=962962891]
+script = ExtResource("1_x2o5b")
+
+[node name="TextureRect" type="TextureRect" parent="." unique_id=167131178]
+offset_right = 40.0
+offset_bottom = 40.0
+scale = Vector2(1.465, 1.465)
