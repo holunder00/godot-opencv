@@ -1,6 +1,6 @@
 #####################################################################################################################################################
 #####################################################################################################################################################
-##This GDExtension was made by Holunder Heiß for "Interplayful Environments - University of Arts Linz" with the purpose do use Godot as a media art tool.
+##This GDExtension was made by Holunder Heiss for "Interplayful Environments - University of Arts Linz" with the purpose do use Godot as a media art tool.
 
 With this Extension you can access a Webcam on Windows/Linux/OSX and use basic OpenCV features. 
 It is possible to use the Camera in GDScript and also use the Camera Image directly as a texture.
@@ -8,23 +8,25 @@ It is possible to use the Camera in GDScript and also use the Camera Image direc
 At the moment there is no possibilitie to detect the camera config automatically. You have to select the right camera index, and the Pixelformat yourself.
 
 Some of the OPENCV tools are implementet at the moment does are this ones (see the examples):<br />
-    - Receiving Camera texture in Editor and in Game in Code and as Texture<br />
-    - Face Detection (the Haircascade files have to be downloaded and referenced)<br />
-    - Basic OpenCV drawing functionality<br />
-    - Image Filters: <br />
-        blur<br />
-        gaussian blur<br />
-        median blur<br />
-        #bilateral Filter<br />
-        canny edge detection<br />
-        #sobel<br />
-        #laplacian<br />
-        threshold<br />
-        #adaptive threshold<br />
-        dilate<br />
-        erode<br />
-        morphology_ex<br />
-        
+<ul>
+    <li>Using Camera in Gamemode from GDScript</li>
+    <li>Directly use Camera Image as Texture "CVCameraTexture" in Editor and Game</li>
+    <li>Face Detection (the Haircascade files have to be downloaded and referenced)</li>
+    <li>Basic OpenCV drawing functionality</li>
+    <li>Image Filters: </li>
+        <ul>
+        <li>blur</li>
+        <li>gaussian blur</li>
+        <li>median blur</li>
+        <li>canny edge detection</li>
+        <li>threshold</li>
+        <li>adaptive threshold</li>
+        <li>dilate</li>
+        <li>erode</li>
+        <li>morphology_ex</li>
+        </ul>
+</ul>
+
 AI information:
 The Extension is created with a little help from Claude AI
 
