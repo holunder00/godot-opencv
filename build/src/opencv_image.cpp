@@ -2,6 +2,7 @@
 #include <godot_cpp/core/class_db.hpp>
 #include <godot_cpp/variant/utility_functions.hpp>
 
+
 using namespace godot;
 
 void CVImage::_bind_methods() {
@@ -66,7 +67,29 @@ void CVImage::_bind_methods() {
     ClassDB::bind_method(D_METHOD("bitwise_not"), &CVImage::bitwise_not);
     ClassDB::bind_method(D_METHOD("absdiff", "other"), &CVImage::absdiff);
     ClassDB::bind_method(D_METHOD("in_range", "lower", "upper"), &CVImage::in_range);
+
+    ClassDB::bind_method(D_METHOD("detect_aruco_markers", "dictionary_id"), &CVImage::detect_aruco_markers, DEFVAL(0));
+
+    // Expose the common predefined dictionaries so GDScript doesn't use magic numbers.
+    BIND_ENUM_CONSTANT(DICT_4X4_50);
+    BIND_ENUM_CONSTANT(DICT_4X4_100);
+    BIND_ENUM_CONSTANT(DICT_4X4_250);
+    BIND_ENUM_CONSTANT(DICT_4X4_1000);
+    BIND_ENUM_CONSTANT(DICT_5X5_50);
+    BIND_ENUM_CONSTANT(DICT_5X5_100);
+    BIND_ENUM_CONSTANT(DICT_5X5_250);
+    BIND_ENUM_CONSTANT(DICT_5X5_1000);
+    BIND_ENUM_CONSTANT(DICT_6X6_50);
+    BIND_ENUM_CONSTANT(DICT_6X6_100);
+    BIND_ENUM_CONSTANT(DICT_6X6_250);
+    BIND_ENUM_CONSTANT(DICT_6X6_1000);
+    BIND_ENUM_CONSTANT(DICT_7X7_50);
+    BIND_ENUM_CONSTANT(DICT_7X7_100);
+    BIND_ENUM_CONSTANT(DICT_7X7_250);
+    BIND_ENUM_CONSTANT(DICT_7X7_1000);
+    BIND_ENUM_CONSTANT(DICT_ARUCO_ORIGINAL);
 }
+
 
 CVImage::CVImage() {}
 CVImage::~CVImage() {}
@@ -299,6 +322,43 @@ Array CVImage::detect_haar_cascade(const String &cascade_path, double scale_fact
     std::vector<cv::Rect> detections;
     cascade.detectMultiScale(gray, detections, scale_factor, min_neighbors, 0, cv::Size(min_size.x, min_size.y), cv::Size(max_size.x, max_size.y));
     for (const auto &r : detections) result.append(Rect2i(r.x, r.y, r.width, r.height));
+    return result;
+}
+
+Array CVImage::detect_aruco_markers(int dictionary_id) const {
+    Array result;
+    if (mat.empty()) return result;
+
+    cv::Mat gray;
+    if (mat.channels() > 1) cv::cvtColor(mat, gray, cv::COLOR_BGR2GRAY);
+    else gray = mat;
+
+    cv::aruco::Dictionary dictionary =
+            cv::aruco::getPredefinedDictionary(dictionary_id);
+    cv::aruco::DetectorParameters params;
+    cv::aruco::ArucoDetector detector(dictionary, params);
+
+    std::vector<int> ids;
+    std::vector<std::vector<cv::Point2f>> corners;
+    detector.detectMarkers(gray, corners, ids);
+
+    for (size_t i = 0; i < ids.size(); i++) {
+        Dictionary marker;
+        marker["id"] = ids[i];
+
+        PackedVector2Array pts;   // order: top-left, top-right, bottom-right, bottom-left
+        for (const cv::Point2f &p : corners[i]) {
+            pts.append(Vector2(p.x, p.y));
+        }
+        marker["corners"] = pts;
+
+        // Center is what you usually want for positioning a node on the marker.
+        Vector2 center(0, 0);
+        for (int j = 0; j < 4; j++) center += pts[j];
+        marker["center"] = center / 4.0;
+
+        result.append(marker);
+    }
     return result;
 }
 

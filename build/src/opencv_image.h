@@ -11,6 +11,7 @@
 #include <opencv2/imgcodecs.hpp>
 #include <opencv2/objdetect.hpp>
 #include <opencv2/features2d.hpp>
+#include <opencv2/objdetect/aruco_detector.hpp>
 
 namespace godot {
 
@@ -26,6 +27,26 @@ protected:
 public:
     CVImage();
     ~CVImage();
+
+    enum ArucoDict {
+        DICT_4X4_50 = 0,
+        DICT_4X4_100 = 1,
+        DICT_4X4_250 = 2,
+        DICT_4X4_1000 = 3,
+        DICT_5X5_50 = 4,
+        DICT_5X5_100 = 5,
+        DICT_5X5_250 = 6,
+        DICT_5X5_1000 = 7,
+        DICT_6X6_50 = 8,
+        DICT_6X6_100 = 9,
+        DICT_6X6_250 = 10,
+        DICT_6X6_1000 = 11,
+        DICT_7X7_50 = 12,
+        DICT_7X7_100 = 13,
+        DICT_7X7_250 = 14,
+        DICT_7X7_1000 = 15,
+        DICT_ARUCO_ORIGINAL = 16,
+    };
 
     void create(int width, int height, int type);
     void create_from_image(const Ref<Image> &p_image);
@@ -75,6 +96,8 @@ public:
 
     Array detect_haar_cascade(const String &cascade_path, double scale_factor, int min_neighbors, const Vector2i &min_size, const Vector2i &max_size);
 
+    Array detect_aruco_markers(int dictionary_id = 0) const;
+
     Ref<CVImage> equalize_hist() const;
     Array find_contours(int mode, int method) const;
 
@@ -101,5 +124,7 @@ private:
 };
 
 } // namespace godot
+
+VARIANT_ENUM_CAST(godot::CVImage::ArucoDict);
 
 #endif
