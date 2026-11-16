@@ -1,0 +1,12 @@
+[gd_scene format=3 uid="uid://cenbcsthma7h1"]
+
+[ext_resource type="Script" uid="uid://cxnsvh64qeu34" path="res://addons/gdopencv/examples/Scripts/ar_tag_aruco.gd" id="1_3w6cs"]
+
+[node name="AR_Tag_Aruco" type="Node2D" unique_id=49247521]
+top_level = true
+script = ExtResource("1_3w6cs")
+
+[node name="TextureRect" type="TextureRect" parent="." unique_id=837933903]
+modulate = Color(1, 1, 1, 0.395)
+offset_right = 40.0
+offset_bottom = 40.0
